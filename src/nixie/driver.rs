@@ -5,6 +5,7 @@ use esp_idf_svc::timer::EspTimerService;
 
 pub struct NixieClock<S> {
     spi: S,
+    buffer: [u8; 4],
 }
 
 impl<'a, S> NixieClock<S>
@@ -12,16 +13,14 @@ where
     S: spi::Write<u8> + Send + 'a,
 {
     pub fn new(spi: S) -> Self {
-        Self { spi }
+        let buffer = [0x00, 0x00, 0x00, 0x00];
+        Self { spi, buffer }
     }
 
     pub fn run(&mut self) -> Result<(), anyhow::Error> {
-        //[0x40, 0x00, 0x00, 0x08]
-        let send_buffer = [0x40u8, 0x00u8, 0x00u8, 0x08u8];
-
         let (tx, rx) = channel();
         let periodic_timer = EspTimerService::new()?.timer(move || {
-            tx.send(send_buffer).unwrap();
+            tx.send(true).unwrap();
         })?;
 
         periodic_timer.every(Duration::from_millis(3))?;
@@ -30,18 +29,20 @@ where
         let mut count = 0;
 
         loop {
-            let buffer = rx.recv()?;
-            if count >= 3 {
-                self.send(&buffer);
-                count = 0;
-            } else {
-                self.send(&[0x00, 0x00, 0x00, 0x00]);
-                count += 1;
+            if rx.recv()? {
+                if count >= 3 {
+                    self.buffer = [0x40, 0x00, 0x00, 0x08];
+                    count = 0;
+                } else {
+                    self.buffer = [0x00, 0x00, 0x00, 0x00];
+                    count += 1;
+                }
+                self.send();
             }
         }
     }
 
-    fn send(&mut self, buffer: &[u8]) {
-        let _x = self.spi.write(buffer);
+    fn send(&mut self) {
+        let _x = self.spi.write(&self.buffer);
     }
 }
