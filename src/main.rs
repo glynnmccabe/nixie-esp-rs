@@ -1,4 +1,5 @@
 use esp_idf_hal::{
+    delay,
     gpio::{self, PinDriver},
     prelude::*,
     spi,
@@ -41,10 +42,11 @@ fn main() -> anyhow::Result<()> {
     info!("Starting nixie loop");
     n_psu_enable.set_low()?;
     let mut nixie_clock = nixie::driver::NixieClock::new(spi_driver);
+    let _nixie_thread = std::thread::Builder::new()
+        .stack_size(2048)
+        .spawn(move || nixie_clock.run())?;
 
-    nixie_clock.run()?;
-
-    info!("Program exit");
-
-    Ok(())
+    loop {
+        delay::Delay::delay_ms(100);
+    }
 }
