@@ -2,10 +2,12 @@ use std::{sync::mpsc::channel, time::Duration};
 
 use embedded_hal::blocking::spi;
 use esp_idf_svc::timer::EspTimerService;
+use log::info;
 
 pub struct NixieClock<S> {
     spi: S,
     buffer: [u8; 4],
+    count: u8,
 }
 
 impl<'a, S> NixieClock<S>
@@ -14,35 +16,28 @@ where
 {
     pub fn new(spi: S) -> Self {
         let buffer = [0x00, 0x00, 0x00, 0x00];
-        Self { spi, buffer }
+        let count = 0;
+        Self { spi, buffer, count }
     }
 
-    pub fn run(&mut self) -> Result<(), anyhow::Error> {
-        let (tx, rx) = channel();
-        let periodic_timer = EspTimerService::new()?.timer(move || {
-            tx.send(true).unwrap();
-        })?;
-
-        periodic_timer.every(Duration::from_millis(3))?;
-
-        // hack a duty cycle
-        let mut count = 0;
-
-        loop {
-            if rx.recv()? {
-                if count >= 3 {
-                    self.buffer = [0x40, 0x00, 0x00, 0x08];
-                    count = 0;
-                } else {
-                    self.buffer = [0x00, 0x00, 0x00, 0x00];
-                    count += 1;
-                }
-                self.send();
-            }
+    pub fn run(&mut self) -> anyhow::Result<()> {
+        if self.count >= 3 {
+            self.send(&self.buffer.clone())?;
+            self.count = 0;
+        } else {
+            self.send(&[0x00, 0x00, 0x00, 0x00])?;
+            self.count += 1;
         }
+
+        Ok(())
     }
 
-    fn send(&mut self) {
-        let _x = self.spi.write(&self.buffer);
+    pub fn set(&mut self, mut buffer: &[u8; 4]) {
+        self.buffer = *buffer;
+    }
+
+    fn send(&mut self, mut buffer: &[u8]) -> anyhow::Result<()> {
+        let _x = self.spi.write(buffer);
+        Ok(())
     }
 }
