@@ -16,9 +16,12 @@ where
     }
 
     pub fn run(&mut self) -> Result<(), anyhow::Error> {
+        //[0x40, 0x00, 0x00, 0x08]
+        let send_buffer = [0x40u8, 0x00u8, 0x00u8, 0x08u8];
+
         let (tx, rx) = channel();
         let periodic_timer = EspTimerService::new()?.timer(move || {
-            tx.send("hello").unwrap();
+            tx.send(send_buffer).unwrap();
         })?;
 
         periodic_timer.every(Duration::from_millis(3))?;
@@ -27,25 +30,18 @@ where
         let mut count = 0;
 
         loop {
-            if rx.recv().is_ok() {
-                if count >= 3 {
-                    self.send();
-                    count = 0;
-                } else {
-                    self.send_off();
-                    count += 1;
-                }
+            let buffer = rx.recv()?;
+            if count >= 3 {
+                self.send(&buffer);
+                count = 0;
             } else {
-                anyhow::bail!("Channel failed.");
+                self.send(&[0x00, 0x00, 0x00, 0x00]);
+                count += 1;
             }
         }
     }
 
-    fn send(&mut self) {
-        let _x = self.spi.write(&[0x40, 0x00, 0x00, 0x08]);
-    }
-
-    fn send_off(&mut self) {
-        let _x = self.spi.write(&[0x00, 0x00, 0x00, 0x00]);
+    fn send(&mut self, buffer: &[u8]) {
+        let _x = self.spi.write(buffer);
     }
 }

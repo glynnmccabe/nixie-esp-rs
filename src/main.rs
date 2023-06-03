@@ -16,8 +16,6 @@ fn main() -> anyhow::Result<()> {
     let peripherals = Peripherals::take().unwrap();
     let pins = peripherals.pins;
 
-    info!("Hello, world!");
-
     // Turn the high voltage psu off
     let mut n_psu_enable = PinDriver::output(pins.gpio12)?;
     n_psu_enable.set_high()?;
@@ -43,6 +41,7 @@ fn main() -> anyhow::Result<()> {
     info!("Starting nixie loop");
     n_psu_enable.set_low()?;
     let mut nixie_clock = nixie::driver::NixieClock::new(spi_driver);
+
     nixie_clock.run()?;
 
     info!("Program exit");
