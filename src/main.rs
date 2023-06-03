@@ -1,12 +1,18 @@
-use esp_idf_sys as _; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
+use esp_idf_hal::{gpio::PinDriver, prelude::*};
+use esp_idf_sys as _;
 use log::*;
 
-fn main() {
-    // It is necessary to call this function once. Otherwise some patches to the runtime
-    // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
+fn main() -> anyhow::Result<()> {
     esp_idf_sys::link_patches();
-    // Bind the log crate to the ESP Logging facilities
     esp_idf_svc::log::EspLogger::initialize_default();
 
+    let peripherals = Peripherals::take().unwrap();
+    let pins = peripherals.pins;
+
+    // Turn the high voltage psu off
+    let mut n_psu_enable = PinDriver::output(pins.gpio12)?;
+    n_psu_enable.set_high()?;
+
     info!("Hello, world!");
+    Ok(())
 }
